@@ -58,7 +58,7 @@ jobs:
           if not usuario or not clave:
               raise RuntimeError("Faltan credenciales Gmail")
 
-          if len(destinatarios) != 2:
+          if len(destinatarios) != 1:
               raise RuntimeError(
                   "Debes configurar dos destinatarios"
               )
