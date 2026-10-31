@@ -1,18 +1,20 @@
+
 name: Monitor Compra Agil
 
 on:
   schedule:
     - cron: "7,17,27,37,47,57 * * * *"
+
   workflow_dispatch:
     inputs:
       operacion:
-        description: "Inicializar historico SIN correos o ejecutar monitor"
+        description: "Ejecutar monitor o inicializar historico SIN correos"
         required: true
         type: choice
-        default: "inicializar_historico"
+        default: "revisar"
         options:
-          - inicializar_historico
           - revisar
+          - inicializar_historico
 
 permissions:
   contents: write
@@ -60,7 +62,9 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
           git add oportunidades.db
+
           if ! git diff --cached --quiet; then
             git commit -m "Actualizar historial de Compra Agil [skip ci]"
             git pull --rebase origin main
