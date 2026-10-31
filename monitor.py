@@ -757,7 +757,7 @@ def main():
 
     ahora = datetime.now(timezone.utc)
 
-    ultima = None
+    ultima = leer_config(conexion, "ultima_revision_exitosa")
 
     if ultima:
         desde = fecha_utc(ultima)
