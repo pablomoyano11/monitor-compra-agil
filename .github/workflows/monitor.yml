@@ -1,3 +1,4 @@
+
 name: Monitor Compra Agil
 
 on:
@@ -31,6 +32,59 @@ jobs:
       - name: Instalar dependencias
         run: pip install -r requirements.txt
 
+      # PRUEBA TEMPORAL:
+      # Solo se ejecuta manualmente.
+      # Envia un unico correo al Gmail remitente.
+      - name: Probar conexion Gmail
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          GMAIL_DESTINATARIOS: ${{ secrets.GMAIL_DESTINATARIOS }}
+        run: |
+          python - <<'PY'
+          import os
+          import smtplib
+          from email.message import EmailMessage
+
+          usuario = os.environ["GMAIL_USER"].strip()
+          clave = os.environ["GMAIL_APP_PASSWORD"].replace(" ", "")
+          destinatarios = [
+              correo.strip()
+              for correo in os.environ["GMAIL_DESTINATARIOS"].split(",")
+              if correo.strip()
+          ]
+
+          if not usuario or not clave:
+              raise RuntimeError("Faltan credenciales Gmail")
+
+          if len(destinatarios) != 2:
+              raise RuntimeError(
+                  "Debes configurar dos destinatarios"
+              )
+
+          mensaje = EmailMessage()
+          mensaje["From"] = usuario
+          mensaje["To"] = usuario
+          mensaje["Subject"] = (
+              "Prueba Gmail - Monitor Compra Agil"
+          )
+          mensaje.set_content(
+              "Conexion Gmail exitosa.\n\n"
+              "Este mensaje fue enviado desde GitHub Actions.\n"
+              "No se han enviado licitaciones.\n\n"
+              "Monitor Compra Agil"
+          )
+
+          with smtplib.SMTP_SSL(
+              "smtp.gmail.com", 465, timeout=30
+          ) as servidor:
+              servidor.login(usuario, clave)
+              servidor.send_message(mensaje)
+
+          print("Prueba Gmail enviada correctamente")
+          PY
+
       - name: Ejecutar monitor
         env:
           CHILECOMPRA_TICKET: ${{ secrets.CHILECOMPRA_TICKET }}
@@ -45,7 +99,9 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
           git add oportunidades.db
+
           if ! git diff --cached --quiet; then
             git commit -m "Actualizar historial de Compra Agil"
             git push
