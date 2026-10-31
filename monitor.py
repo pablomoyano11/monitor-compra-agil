@@ -652,21 +652,38 @@ def construir_oportunidad(detalle, coincidencias):
     }
 
 
+
 def procesar(conexion, item):
     codigo = str(item.get("codigo", "")).strip()
 
     if not codigo:
         return
 
-    # Consultamos detalle para encontrar palabras
-    # que no aparezcan en el título.
+    # Primer filtro: información del listado
+    texto_preliminar = obtener_texto(item)
+    coincidencias_previas = detectar_coincidencias(
+        texto_preliminar
+    )
+
+    if not coincidencias_previas:
+        return
+
+    logging.info(
+        "Posible coincidencia: %s | %s",
+        codigo,
+        ", ".join(coincidencias_previas.keys())
+    )
+
+    # Consultar detalle solo si coincide
     detalle = obtener_detalle(codigo)
 
     if not isinstance(detalle, dict):
         return
 
-    texto = obtener_texto(detalle)
-    coincidencias = detectar_coincidencias(texto)
+    texto_completo = obtener_texto(detalle)
+    coincidencias = detectar_coincidencias(
+        texto_completo
+    )
 
     if not coincidencias:
         return
@@ -681,7 +698,7 @@ def procesar(conexion, item):
     guardar_oportunidad(conexion, oportunidad)
 
     logging.info(
-        "Coincidencia: %s | %s",
+        "Coincidencia confirmada: %s | %s",
         codigo, oportunidad["categoria"]
     )
 
