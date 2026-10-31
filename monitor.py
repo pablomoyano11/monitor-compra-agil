@@ -39,7 +39,7 @@ DRY_RUN = os.getenv("DRY_RUN", "true").lower() == "true"
 
 # Primera ejecución: revisar última hora.
 # Posteriores: revisar desde el último ciclo exitoso.
-VENTANA_INICIAL_MINUTOS = 60
+VENTANA_INICIAL_MINUTOS = 10080
 SOLAPAMIENTO_MINUTOS = 15
 
 REGIONES = {
