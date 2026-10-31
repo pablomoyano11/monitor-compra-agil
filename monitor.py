@@ -1,5 +1,6 @@
 
 import os
+import sys
 import re
 import json
 import time
@@ -32,6 +33,7 @@ GMAIL_DESTINATARIOS = list(dict.fromkeys(
 ))
 
 DRY_RUN = os.getenv("DRY_RUN", "true").lower() == "true"
+EMAIL_ACTIVADO = os.getenv("EMAIL_ACTIVADO", "false").lower() == "true"
 
 # Primera ejecución sin historial: revisar últimas 48 horas.
 # Posteriores: revisar desde el último ciclo exitoso.
@@ -480,7 +482,7 @@ def enviar_email(oportunidad, destinatario):
         f"Buscar en Mercado Público: {oportunidad['enlace']}\n\n"
         "Aviso generado automáticamente. Comprueba los datos en Mercado Público."
     )
-    if DRY_RUN:
+    if DRY_RUN or not EMAIL_ACTIVADO:
         logging.info("SIMULACIÓN Gmail: %s -> %s | %s", oportunidad['codigo'], destinatario, asunto)
         return False
     if not GMAIL_USER or not GMAIL_APP_PASSWORD:
@@ -628,6 +630,12 @@ def procesar(conexion, item):
 
 
 def enviar_pendientes(conexion):
+    if leer_config(conexion, "baseline_email_completada") != "si":
+        logging.warning("Bloqueo de seguridad: primero ejecuta la inicialización histórica")
+        return
+    if DRY_RUN or not EMAIL_ACTIVADO:
+        logging.info("Envíos desactivados: DRY_RUN=%s EMAIL_ACTIVADO=%s", DRY_RUN, EMAIL_ACTIVADO)
+        return
     if not GMAIL_DESTINATARIOS:
         logging.warning("GMAIL_DESTINATARIOS no configurado; no se envían avisos")
         return
@@ -671,6 +679,26 @@ def enviar_pendientes(conexion):
                 UPDATE oportunidades SET notificado=1, fecha_notificacion=? WHERE codigo=?
             """, (datetime.now(timezone.utc).isoformat(), codigo))
             conexion.commit()
+
+
+def inicializar_historico():
+    """Marca las oportunidades ya guardadas como procesadas, sin mandar correos."""
+    conexion = conectar_db()
+    cantidad = conexion.execute(
+        "SELECT COUNT(*) FROM oportunidades WHERE notificado=0"
+    ).fetchone()[0]
+    conexion.execute("""
+        UPDATE oportunidades
+        SET notificado=1, fecha_notificacion=COALESCE(fecha_notificacion, ?)
+        WHERE notificado=0
+    """, (datetime.now(timezone.utc).isoformat(),))
+    conexion.execute("""
+        INSERT INTO configuracion(clave, valor) VALUES ('baseline_email_completada', 'si')
+        ON CONFLICT(clave) DO UPDATE SET valor='si'
+    """)
+    conexion.commit()
+    logging.info("Histórico marcado SIN ENVÍO: %s oportunidades", cantidad)
+    conexion.close()
 
 
 def main():
@@ -739,4 +767,7 @@ def main():
     conexion.close()
 
 if __name__ == "__main__":
-    main()
+    if "--baseline" in sys.argv:
+        inicializar_historico()
+    else:
+        main()
