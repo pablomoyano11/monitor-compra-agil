@@ -1,10 +1,18 @@
-
 name: Monitor Compra Agil
 
 on:
   schedule:
     - cron: "7,17,27,37,47,57 * * * *"
   workflow_dispatch:
+    inputs:
+      operacion:
+        description: "Inicializar historico SIN correos o ejecutar monitor"
+        required: true
+        type: choice
+        default: "inicializar_historico"
+        options:
+          - inicializar_historico
+          - revisar
 
 permissions:
   contents: write
@@ -32,69 +40,19 @@ jobs:
       - name: Instalar dependencias
         run: pip install -r requirements.txt
 
-      # PRUEBA TEMPORAL:
-      # Solo se ejecuta manualmente.
-      # Envia un unico correo al Gmail remitente.
-      - name: Probar conexion Gmail
-        if: github.event_name == 'workflow_dispatch'
-        env:
-          GMAIL_USER: ${{ secrets.GMAIL_USER }}
-          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
-          GMAIL_DESTINATARIOS: ${{ secrets.GMAIL_DESTINATARIOS }}
-        run: |
-          python - <<'PY'
-          import os
-          import smtplib
-          from email.message import EmailMessage
-
-          usuario = os.environ["GMAIL_USER"].strip()
-          clave = os.environ["GMAIL_APP_PASSWORD"].replace(" ", "")
-          destinatarios = [
-              correo.strip()
-              for correo in os.environ["GMAIL_DESTINATARIOS"].split(",")
-              if correo.strip()
-          ]
-
-          if not usuario or not clave:
-              raise RuntimeError("Faltan credenciales Gmail")
-
-          if len(destinatarios) != 1:
-              raise RuntimeError(
-                  "Debes configurar dos destinatarios"
-              )
-
-          mensaje = EmailMessage()
-          mensaje["From"] = usuario
-          mensaje["To"] = usuario
-          mensaje["Subject"] = (
-              "Prueba Gmail - Monitor Compra Agil"
-          )
-          mensaje.set_content(
-              "Conexion Gmail exitosa.\n\n"
-              "Este mensaje fue enviado desde GitHub Actions.\n"
-              "No se han enviado licitaciones.\n\n"
-              "Monitor Compra Agil"
-          )
-
-          with smtplib.SMTP("smtp.gmail.com", 587, timeout=30) as servidor:
-            servidor.ehlo()
-            servidor.starttls()
-            servidor.ehlo()
-            servidor.login(usuario, clave)
-            servidor.send_message(mensaje)
-
-          print("Prueba Gmail enviada correctamente")
-          PY
-
-          
+      - name: Inicializar historial sin enviar correos
+        if: github.event_name == 'workflow_dispatch' && inputs.operacion == 'inicializar_historico'
+        run: python monitor.py --baseline
 
       - name: Ejecutar monitor
+        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.operacion == 'revisar')
         env:
           CHILECOMPRA_TICKET: ${{ secrets.CHILECOMPRA_TICKET }}
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           GMAIL_DESTINATARIOS: ${{ secrets.GMAIL_DESTINATARIOS }}
-          DRY_RUN: "true"
+          EMAIL_ACTIVADO: ${{ vars.EMAIL_ACTIVADO }}
+          DRY_RUN: ${{ vars.EMAIL_ACTIVADO == 'true' && 'false' || 'true' }}
         run: python monitor.py
 
       - name: Guardar resultados SQLite
@@ -102,12 +60,11 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
           git add oportunidades.db
-
           if ! git diff --cached --quiet; then
-            git commit -m "Actualizar historial de Compra Agil"
-            git push
+            git commit -m "Actualizar historial de Compra Agil [skip ci]"
+            git pull --rebase origin main
+            git push origin HEAD:main
           else
             echo "Sin cambios en la base de datos"
           fi
