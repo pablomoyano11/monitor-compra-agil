@@ -76,14 +76,17 @@ jobs:
               "Monitor Compra Agil"
           )
 
-          with smtplib.SMTP_SSL(
-              "smtp.gmail.com", 465, timeout=30
-          ) as servidor:
-              servidor.login(usuario, clave)
-              servidor.send_message(mensaje)
+          with smtplib.SMTP("smtp.gmail.com", 587, timeout=30) as servidor:
+            servidor.ehlo()
+            servidor.starttls()
+            servidor.ehlo()
+            servidor.login(usuario, clave)
+            servidor.send_message(mensaje)
 
           print("Prueba Gmail enviada correctamente")
           PY
+
+          
 
       - name: Ejecutar monitor
         env:
