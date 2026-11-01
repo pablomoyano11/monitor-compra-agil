@@ -3,7 +3,7 @@ name: Monitor Compra Agil
 
 on:
   schedule:
-    - cron: "7,17,27,37,47,57 * * * *"
+    - cron: '*/5 * * * *'
 
   workflow_dispatch:
     inputs:
